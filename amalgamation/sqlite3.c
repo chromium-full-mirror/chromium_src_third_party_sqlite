@@ -12996,7 +12996,7 @@ SQLITE_PRIVATE int sqlite3ReadSchema(Parse *pParse);
 SQLITE_PRIVATE CollSeq *sqlite3FindCollSeq(sqlite3*,u8 enc, const char*,int);
 SQLITE_PRIVATE CollSeq *sqlite3LocateCollSeq(Parse *pParse, const char*zName);
 SQLITE_PRIVATE CollSeq *sqlite3ExprCollSeq(Parse *pParse, Expr *pExpr);
-SQLITE_PRIVATE Expr *sqlite3ExprAddCollateToken(Parse *pParse, Expr*, const Token*);
+SQLITE_PRIVATE Expr *sqlite3ExprAddCollateToken(Parse *pParse, Expr*, const Token*, int);
 SQLITE_PRIVATE Expr *sqlite3ExprAddCollateString(Parse*,Expr*,const char*);
 SQLITE_PRIVATE Expr *sqlite3ExprSkipCollate(Expr*);
 SQLITE_PRIVATE int sqlite3CheckCollSeq(Parse *, CollSeq *);
@@ -80848,10 +80848,11 @@ SQLITE_PRIVATE char sqlite3ExprAffinity(Expr *pExpr){
 SQLITE_PRIVATE Expr *sqlite3ExprAddCollateToken(
   Parse *pParse,           /* Parsing context */
   Expr *pExpr,             /* Add the "COLLATE" clause to this expression */
-  const Token *pCollName   /* Name of collating sequence */
+  const Token *pCollName,  /* Name of collating sequence */
+  int dequote              /* True to dequote pCollName */
 ){
   if( pCollName->n>0 ){
-    Expr *pNew = sqlite3ExprAlloc(pParse->db, TK_COLLATE, pCollName, 1);
+    Expr *pNew = sqlite3ExprAlloc(pParse->db, TK_COLLATE, pCollName, dequote);
     if( pNew ){
       pNew->pLeft = pExpr;
       pNew->flags |= EP_Collate|EP_Skip;
@@ -80865,7 +80866,7 @@ SQLITE_PRIVATE Expr *sqlite3ExprAddCollateString(Parse *pParse, Expr *pExpr, con
   assert( zC!=0 );
   s.z = zC;
   s.n = sqlite3Strlen30(s.z);
-  return sqlite3ExprAddCollateToken(pParse, pExpr, &s);
+  return sqlite3ExprAddCollateToken(pParse, pExpr, &s, 0);
 }
 
 /*
@@ -114998,7 +114999,7 @@ static void exprAnalyze(
     Expr *pNewExpr2;
     int idxNew1;
     int idxNew2;
-    Token sCollSeqName;  /* Name of collating sequence */
+    const char *zCollSeqName;     /* Name of collating sequence */
 
     pLeft = pExpr->x.pList->a[1].pExpr;
     pStr2 = sqlite3ExprDup(db, pStr1, 0);
@@ -115018,11 +115019,10 @@ static void exprAnalyze(
       }
       *pC = c + 1;
     }
-    sCollSeqName.z = noCase ? "NOCASE" : "BINARY";
-    sCollSeqName.n = 6;
+    zCollSeqName = noCase ? "NOCASE" : "BINARY";
     pNewExpr1 = sqlite3ExprDup(db, pLeft, 0);
     pNewExpr1 = sqlite3PExpr(pParse, TK_GE, 
-           sqlite3ExprAddCollateToken(pParse,pNewExpr1,&sCollSeqName),
+           sqlite3ExprAddCollateString(pParse,pNewExpr1,zCollSeqName),
            pStr1, 0);
     transferJoinMarkings(pNewExpr1, pExpr);
     idxNew1 = whereClauseInsert(pWC, pNewExpr1, TERM_VIRTUAL|TERM_DYNAMIC);
@@ -115030,7 +115030,7 @@ static void exprAnalyze(
     exprAnalyze(pSrc, pWC, idxNew1);
     pNewExpr2 = sqlite3ExprDup(db, pLeft, 0);
     pNewExpr2 = sqlite3PExpr(pParse, TK_LT,
-           sqlite3ExprAddCollateToken(pParse,pNewExpr2,&sCollSeqName),
+           sqlite3ExprAddCollateString(pParse,pNewExpr2,zCollSeqName),
            pStr2, 0);
     transferJoinMarkings(pNewExpr2, pExpr);
     idxNew2 = whereClauseInsert(pWC, pNewExpr2, TERM_VIRTUAL|TERM_DYNAMIC);
@@ -123107,7 +123107,7 @@ static void yy_reduce(
         break;
       case 193: /* expr ::= expr COLLATE ID|STRING */
 {
-  yygotominor.yy346.pExpr = sqlite3ExprAddCollateToken(pParse, yymsp[-2].minor.yy346.pExpr, &yymsp[0].minor.yy0);
+  yygotominor.yy346.pExpr = sqlite3ExprAddCollateToken(pParse, yymsp[-2].minor.yy346.pExpr, &yymsp[0].minor.yy0, 1);
   yygotominor.yy346.zStart = yymsp[-2].minor.yy346.zStart;
   yygotominor.yy346.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
 }
@@ -123387,7 +123387,7 @@ static void yy_reduce(
         break;
       case 244: /* idxlist ::= idxlist COMMA nm collate sortorder */
 {
-  Expr *p = sqlite3ExprAddCollateToken(pParse, 0, &yymsp[-1].minor.yy0);
+  Expr *p = sqlite3ExprAddCollateToken(pParse, 0, &yymsp[-1].minor.yy0, 1);
   yygotominor.yy14 = sqlite3ExprListAppend(pParse,yymsp[-4].minor.yy14, p);
   sqlite3ExprListSetName(pParse,yygotominor.yy14,&yymsp[-2].minor.yy0,1);
   sqlite3ExprListCheckLength(pParse, yygotominor.yy14, "index");
@@ -123396,7 +123396,7 @@ static void yy_reduce(
         break;
       case 245: /* idxlist ::= nm collate sortorder */
 {
-  Expr *p = sqlite3ExprAddCollateToken(pParse, 0, &yymsp[-1].minor.yy0);
+  Expr *p = sqlite3ExprAddCollateToken(pParse, 0, &yymsp[-1].minor.yy0, 1);
   yygotominor.yy14 = sqlite3ExprListAppend(pParse,0, p);
   sqlite3ExprListSetName(pParse, yygotominor.yy14, &yymsp[-2].minor.yy0, 1);
   sqlite3ExprListCheckLength(pParse, yygotominor.yy14, "index");
