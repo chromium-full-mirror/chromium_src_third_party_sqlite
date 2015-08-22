@@ -7537,7 +7537,11 @@ SQLITE_API int sqlite3_vtab_on_conflict(sqlite3 *);
 
 
 
-/* Begin recover.patch for Chromium */
+/* Begin recover virtual table patch for Chromium */
+/* Our patches don't conform to SQLite's amalgamation processing. Hack it. */
+#ifndef CHROMIUM_SQLITE_API
+#define CHROMIUM_SQLITE_API SQLITE_API
+#endif
 /*
 ** Call to initialize the recover virtual-table modules (see recover.c).
 **
@@ -7545,8 +7549,45 @@ SQLITE_API int sqlite3_vtab_on_conflict(sqlite3 *);
 ** virtual table available to Web SQL.  Breaking it out allows only
 ** selected users to enable it (currently sql/recovery.cc).
 */
+CHROMIUM_SQLITE_API
 int recoverVtableInit(sqlite3 *db);
-/* End recover.patch for Chromium */
+/* End recover virtual table patch for Chromium */
+
+/* Begin WebDatabase patch for Chromium */
+/* Expose some SQLite internals for the WebDatabase vfs.
+** DO NOT EXTEND THE USE OF THIS.
+*/
+#ifndef CHROMIUM_SQLITE_API
+#define CHROMIUM_SQLITE_API SQLITE_API
+#endif
+#if defined(CHROMIUM_SQLITE_INTERNALS)
+#ifdef _WIN32
+CHROMIUM_SQLITE_API
+void chromium_sqlite3_initialize_win_sqlite3_file(sqlite3_file* file, HANDLE handle);
+#else  /* _WIN32 */
+CHROMIUM_SQLITE_API
+void chromium_sqlite3_initialize_unix_sqlite3_file(sqlite3_file* file);
+CHROMIUM_SQLITE_API
+int chromium_sqlite3_fill_in_unix_sqlite3_file(sqlite3_vfs* vfs,
+                                               int fd,
+                                               int dirfd,
+                                               sqlite3_file* file,
+                                               const char* fileName,
+                                               int noLock);
+CHROMIUM_SQLITE_API
+int chromium_sqlite3_get_reusable_file_handle(sqlite3_file* file,
+                                              const char* fileName,
+                                              int flags,
+                                              int* fd);
+CHROMIUM_SQLITE_API
+void chromium_sqlite3_update_reusable_file_handle(sqlite3_file* file,
+                                                  int fd,
+                                                  int flags);
+CHROMIUM_SQLITE_API
+void chromium_sqlite3_destroy_reusable_file_handle(sqlite3_file* file);
+#endif  /* _WIN32 */
+#endif  /* CHROMIUM_SQLITE_INTERNALS */
+/* End WebDatabase patch for Chromium */
 
 /*
 ** Undo the hack that converts floating point types to integer for
@@ -30451,10 +30492,12 @@ static int findCreateFileMode(
 /*
 ** Initializes a unixFile structure with zeros.
 */
+CHROMIUM_SQLITE_API
 void chromium_sqlite3_initialize_unix_sqlite3_file(sqlite3_file* file) {
   memset(file, 0, sizeof(unixFile));
 }
 
+CHROMIUM_SQLITE_API
 int chromium_sqlite3_fill_in_unix_sqlite3_file(sqlite3_vfs* vfs,
                                                int fd,
                                                int dirfd,
@@ -30473,6 +30516,7 @@ int chromium_sqlite3_fill_in_unix_sqlite3_file(sqlite3_vfs* vfs,
 ** If a reusable file descriptor is not found, and a new UnixUnusedFd cannot
 ** be allocated, SQLITE_NOMEM is returned. Otherwise, SQLITE_OK is returned.
 */
+CHROMIUM_SQLITE_API
 int chromium_sqlite3_get_reusable_file_handle(sqlite3_file* file,
                                               const char* fileName,
                                               int flags,
@@ -30497,6 +30541,7 @@ int chromium_sqlite3_get_reusable_file_handle(sqlite3_file* file,
 /*
 ** Marks 'fd' as the unused file descriptor for 'pFile'.
 */
+CHROMIUM_SQLITE_API
 void chromium_sqlite3_update_reusable_file_handle(sqlite3_file* file,
                                                   int fd,
                                                   int flags) {
@@ -30510,6 +30555,7 @@ void chromium_sqlite3_update_reusable_file_handle(sqlite3_file* file,
 /*
 ** Destroys pFile's field that keeps track of the unused file descriptor.
 */
+CHROMIUM_SQLITE_API
 void chromium_sqlite3_destroy_reusable_file_handle(sqlite3_file* file) {
   unixFile* unixSQLite3File = (unixFile*)file;
   sqlite3_free(unixSQLite3File->pUnused);
@@ -38178,6 +38224,7 @@ SQLITE_API int sqlite3_os_end(void){
   return SQLITE_OK;
 }
 
+CHROMIUM_SQLITE_API
 void chromium_sqlite3_initialize_win_sqlite3_file(sqlite3_file* file, HANDLE handle) {
   winFile* winSQLite3File = (winFile*)file;
   memset(file, 0, sizeof(*file));
@@ -130792,6 +130839,7 @@ static sqlite3_module recoverModule = {
   0,                         /* xRename - rename the table */
 };
 
+CHROMIUM_SQLITE_API
 int recoverVtableInit(sqlite3 *db){
   return sqlite3_create_module_v2(db, "recover", &recoverModule, NULL, 0);
 }
